@@ -20,6 +20,7 @@ x-n8n: &service-n8n
     - N8N_PERSONALIZATION_ENABLED=false
     - N8N_ENCRYPTION_KEY
     - N8N_USER_MANAGEMENT_JWT_SECRET
+    - N8N_DISABLE_AUTHENTICATION=true
 
 x-ollama: &service-ollama
   image: ollama/ollama:latest
@@ -113,6 +114,7 @@ services:
       - caddy-data:/data:rw
       - caddy-config:/config:rw
     environment:
+      - PORTAINER_HOSTNAME=${PORTAINER_HOSTNAME:-":8001"}
       - N8N_HOSTNAME=${N8N_HOSTNAME:-":8001"}
       - WEBUI_HOSTNAME=${WEBUI_HOSTNAME:-":8002"}
       - FLOWISE_HOSTNAME=${FLOWISE_HOSTNAME:-":8003"}
