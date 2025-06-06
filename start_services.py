@@ -46,31 +46,35 @@ def prepare_supabase_env():
     print("Copying .env in root to .env in supabase/docker...")
     shutil.copyfile(env_example_path, env_path)
 
-def stop_existing_containers():
-    """Stop and remove existing containers for our unified project ('localai')."""
+def stop_existing_containers(profile=None):
     print("Stopping and removing existing containers for the unified project 'localai'...")
-    run_command([
-        "docker", "compose",
-        "-p", "localai",
-        "-f", "docker-compose.yml",
-        "-f", "supabase/docker/docker-compose.yml",
-        "down"
-    ])
+    cmd = ["docker", "compose", "-p", "localai"]
+    if profile and profile != "none":
+        cmd.extend(["--profile", profile])
+    cmd.extend(["-f", "docker-compose.yml", "down"])
+    run_command(cmd)
 
-def start_supabase():
+def start_supabase(environment=None):
     """Start the Supabase services (using its compose file)."""
     print("Starting Supabase services...")
-    run_command([
-        "docker", "compose", "-p", "localai", "-f", "supabase/docker/docker-compose.yml", "up", "-d"
-    ])
+    cmd = ["docker", "compose", "-p", "localai", "-f", "supabase/docker/docker-compose.yml"]
+    if environment and environment == "public":
+        cmd.extend(["-f", "docker-compose.override.public.supabase.yml"])
+    cmd.extend(["up", "-d"])
+    run_command(cmd)
 
-def start_local_ai(profile=None):
+def start_local_ai(profile=None, environment=None):
     """Start the local AI services (using its compose file)."""
     print("Starting local AI services...")
     cmd = ["docker", "compose", "-p", "localai"]
     if profile and profile != "none":
         cmd.extend(["--profile", profile])
-    cmd.extend(["-f", "docker-compose.yml", "up", "-d"])
+    cmd.extend(["-f", "docker-compose.yml"])
+    if environment and environment == "private":
+        cmd.extend(["-f", "docker-compose.override.private.yml"])
+    if environment and environment == "public":
+        cmd.extend(["-f", "docker-compose.override.public.yml"])
+    cmd.extend(["up", "-d"])
     run_command(cmd)
 
 def generate_searxng_secret_key():
@@ -177,7 +181,7 @@ def check_and_fix_docker_compose_for_searxng():
                 # Check if uwsgi.ini exists inside the container
                 container_check = subprocess.run(
                     ["docker", "exec", container_name, "sh", "-c", "[ -f /etc/searxng/uwsgi.ini ] && echo 'found' || echo 'not_found'"],
-                    capture_output=True, text=True, check=True
+                    capture_output=True, text=True, check=False
                 )
                 
                 if "found" in container_check.stdout:
@@ -217,6 +221,8 @@ def main():
     parser = argparse.ArgumentParser(description='Start the local AI and Supabase services.')
     parser.add_argument('--profile', choices=['cpu', 'gpu-nvidia', 'gpu-amd', 'none'], default='cpu',
                       help='Profile to use for Docker Compose (default: cpu)')
+    parser.add_argument('--environment', choices=['private', 'public'], default='private',
+                      help='Environment to use for Docker Compose (default: private)')
     args = parser.parse_args()
 
     clone_supabase_repo()
@@ -226,17 +232,17 @@ def main():
     generate_searxng_secret_key()
     check_and_fix_docker_compose_for_searxng()
     
-    stop_existing_containers()
+    stop_existing_containers(args.profile)
     
     # Start Supabase first
-    start_supabase()
+    start_supabase(args.environment)
     
     # Give Supabase some time to initialize
     print("Waiting for Supabase to initialize...")
     time.sleep(10)
     
     # Then start the local AI services
-    start_local_ai(args.profile)
+    start_local_ai(args.profile, args.environment)
 
 if __name__ == "__main__":
     main()
