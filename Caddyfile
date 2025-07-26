@@ -43,6 +43,8 @@
     reverse_proxy neo4j:7474
 }
 
+import /etc/caddy/addons/*.conf
+
 # # SearXNG
 # {$SEARXNG_HOSTNAME} {
 #     encode zstd gzip
@@ -92,12 +94,12 @@
 #         header @imageproxy Cache-Control "max-age=604800, public"
 #         header @static Cache-Control "max-age=31536000, public, immutable"
 #     }
-#    
-#    # SearXNG (uWSGI)
-#    reverse_proxy localhost:8080 {
-#        header_up X-Forwarded-Port {http.request.port}
-#        header_up X-Real-IP {http.request.remote.host}
-#        # https://github.com/searx/searx-docker/issues/24
-#        header_up Connection "close"
-#    }
+    
+#     # SearXNG (uWSGI)
+#     reverse_proxy searxng:8080 {
+#         header_up X-Forwarded-Port {http.request.port}
+#         header_up X-Real-IP {http.request.remote.host}
+#         # https://github.com/searx/searx-docker/issues/24
+#         header_up Connection "close"
+#     }
 # }
