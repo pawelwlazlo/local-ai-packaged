@@ -150,6 +150,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy-addon:/etc/caddy/addons:ro
+      - ./certs:/etc/caddy/certs:ro
       - caddy-data:/data:rw
       - caddy-config:/config:rw
     environment:
