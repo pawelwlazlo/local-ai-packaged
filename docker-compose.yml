@@ -370,13 +370,8 @@ services:
   ollama-gpu:
     profiles: ["gpu-nvidia"]
     <<: *service-ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    devices:
+      - nvidia.com/gpu=0
 
   ollama-gpu-amd:
     profiles: ["gpu-amd"]
