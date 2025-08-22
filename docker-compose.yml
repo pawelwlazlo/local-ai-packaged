@@ -309,6 +309,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=trust"
+    command: >
+      postgres -c password_encryption=md5
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 
