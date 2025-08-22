@@ -20,6 +20,81 @@ def run_command(cmd, cwd=None):
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, cwd=cwd, check=True)
 
+def verify_gpu_setup(profile):
+    """Verify GPU setup is working before starting services."""
+    if profile not in ['gpu-nvidia', 'gpu-amd']:
+        return True
+    
+    if profile == 'gpu-nvidia':
+        try:
+            # Check if NVIDIA runtime is available
+            result = subprocess.run(['docker', 'info'], capture_output=True, text=True)
+            if 'nvidia' not in result.stdout:
+                print("⚠️  Warning: NVIDIA runtime not detected in Docker")
+                return False
+                
+            # Check if CDI devices are available
+            result = subprocess.run(['nvidia-ctk', 'cdi', 'list'], capture_output=True, text=True)
+            if result.returncode != 0 or 'nvidia.com/gpu=' not in result.stdout:
+                print("🔧 Generating NVIDIA CDI specification...")
+                subprocess.run(['sudo', 'nvidia-ctk', 'cdi', 'generate', '--output=/etc/cdi/nvidia.yaml'], check=True)
+                print("✅ NVIDIA CDI generated successfully")
+                
+            # Test GPU access
+            print("🧪 Testing GPU access...")
+            test_cmd = [
+                'docker', 'run', '--rm', '--device', 'nvidia.com/gpu=0', 
+                'ubuntu:22.04', 'bash', '-c', 'ls -la /dev/nvidia* || echo "No devices"'
+            ]
+            result = subprocess.run(test_cmd, capture_output=True, text=True)
+            if result.returncode == 0 and '/dev/nvidia0' in result.stdout:
+                print("✅ NVIDIA GPU access verified")
+                return True
+            else:
+                print("❌ NVIDIA GPU access test failed")
+                print(f"Error: {result.stderr}")
+                return False
+                
+        except subprocess.CalledProcessError as e:
+            print(f"❌ GPU verification failed: {e}")
+            return False
+        except FileNotFoundError:
+            print("❌ Required NVIDIA tools not found")
+            return False
+    
+    return True
+
+def setup_database_env():
+    """Set up database environment variables for Prisma and development."""
+    print("🔧 Setting up database environment variables...")
+    
+    # Read the password from .env file
+    env_password = "eberebe32-PW"  # Default fallback
+    try:
+        with open('.env', 'r') as f:
+            for line in f:
+                if line.startswith('POSTGRES_PASSWORD='):
+                    env_password = line.split('=')[1].strip()
+                    break
+    except FileNotFoundError:
+        print("⚠️  Warning: .env file not found, using default password")
+    
+    # Set environment variables for the current process and subprocesses
+    database_vars = {
+        'DATABASE_URL': f'postgresql://postgres:{env_password}@localhost:5433/postgres',
+        'SUPABASE_DATABASE_URL': f'postgresql://postgres:{env_password}@localhost:5432/postgres',
+        'POSTGRES_HOST': 'localhost',
+        'POSTGRES_PORT': '5433',
+        'POSTGRES_DB': 'postgres',
+        'POSTGRES_USER': 'postgres',
+        'POSTGRES_PASSWORD': env_password
+    }
+    
+    for key, value in database_vars.items():
+        os.environ[key] = value
+    
+    print("✅ Database environment variables configured")
+    
 def clone_supabase_repo():
     """Clone the Supabase repository using sparse checkout if not already present."""
     if not os.path.exists("supabase"):
@@ -227,10 +302,16 @@ def main():
 
     clone_supabase_repo()
     prepare_supabase_env()
+    setup_database_env()
     
     # Generate SearXNG secret key and check docker-compose.yml
     generate_searxng_secret_key()
     check_and_fix_docker_compose_for_searxng()
+    
+    # Verify GPU setup before starting services
+    if not verify_gpu_setup(args.profile):
+        print("❌ GPU setup verification failed. Falling back to CPU profile...")
+        args.profile = 'cpu'
     
     stop_existing_containers(args.profile)
     
